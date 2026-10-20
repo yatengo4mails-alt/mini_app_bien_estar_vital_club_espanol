@@ -863,8 +863,8 @@ async function askChef(extra) {
     const promptText = `Eres un Chef Nutricionista profesional especializado en dietas preventivas para hipertensión y diabetes.Ingredientes ingresados por el usuario: "${ing}".INSTRUCCIONES CLAVE:Revisa detenidamente si la lista contiene ultraprocesados, embutidos altos en sodio (como salchichas, jamón, tocino), refrescos azucarados (como Coca-Cola), exceso de sal o frituras.
 2. Si detectas ingredientes dañinos (como salchichas o refrescos), incluye PRIMERO un apartado destacado que diga: "🚨 ADVERTENCIA MÉDICA DEL CHEF" explicando con claridad las consecuencias negativas de esos alimentos para la presión arterial y la glucosa en sangre.3. Sugiere cómo reemplazar o limitar esos ingredientes dañinos y prepara un platillo gourmet saludable, apetitoso y de bajo índice glucémico. ${extra ? 'Agrega 2 o 3 ingredientes económicos saludables adicionales.' : ''}4. Da la receta paso a paso de forma profesional y apetitosa.`;
 
-    try {
-        const response = await fetch('/api/chat.js', {
+   try {
+        const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt: promptText, message: promptText })
