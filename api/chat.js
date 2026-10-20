@@ -12,10 +12,13 @@ export default async function handler(req, res) {
     const { prompt } = req.body;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }]
         })
@@ -23,7 +26,7 @@ export default async function handler(req, res) {
     );
 
     const data = await response.json();
-    return res.status(200).json(data);
+    return res.status(response.ok ? 200 : response.status).json(data);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
