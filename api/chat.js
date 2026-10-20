@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     if (typeof body === 'string') {
       try {
         body = JSON.parse(body);
-      } catch {
+      } catch (e) {
         return res.status(400).json({ error: 'JSON inválido en el cuerpo de la petición' });
       }
     }
