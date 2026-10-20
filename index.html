@@ -870,7 +870,13 @@ async function askChef(extra) {
             body: JSON.stringify({ prompt: promptText })
         });
 
-        const data = await response.json();
+        const responseText = await response.text();
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            throw new Error('Respuesta inválida del servidor: ' + responseText);
+        }
 
         if (!response.ok) {
             console.error('[Chef] Error HTTP', response.status, data);
@@ -888,6 +894,7 @@ async function askChef(extra) {
         out.innerText = text;
 
     } catch (err) {
+
         console.error('[Chef] Fallo en askChef:', err);
 
         let warningHtml = "";
