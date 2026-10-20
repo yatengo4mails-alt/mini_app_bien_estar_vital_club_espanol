@@ -5,14 +5,26 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'API Key no configurada en Vercel' });
+    return res.status(500).json({ error: 'GEMINI_API_KEY no configurada en Vercel' });
   }
 
   try {
-    const { prompt } = req.body;
+    let body = req.body;
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch {
+        return res.status(400).json({ error: 'JSON inválido en el cuerpo de la petición' });
+      }
+    }
+
+    const prompt = body && body.prompt;
+    if (!prompt || typeof prompt !== 'string') {
+      return res.status(400).json({ error: 'Falta el campo "prompt" (string)' });
+    }
 
     const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
       {
         method: 'POST',
         headers: {
@@ -26,7 +38,7 @@ export default async function handler(req, res) {
     );
 
     const data = await response.json();
-    return res.status(response.ok ? 200 : response.status).json(data);
+    return res.status(response.status).json(data);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
