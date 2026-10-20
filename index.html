@@ -898,8 +898,7 @@ async function askChef(extra) {
                 <div class="p-3 bg-red-100 border-l-4 border-red-600 text-red-900 text-xs rounded mb-2 font-bold">
                     🚨 ADVERTENCIA MÉDICA NUTRICIONAL:<br>
                     Detectamos alimentos como embutidos altos en sodio o refrescos azucarados. Consumir salchichas o bebidas azucaradas eleva bruscamente la presión arterial y dispara los picos de insulina y glucosa. ¡Evítalos o reemplázalos por proteína magra (pollo/huevo) y agua de infusión natural!
-                </div>
-            `;
+                </div>`;
         }
 
         let extrasHtml = "";
@@ -916,8 +915,7 @@ async function askChef(extra) {
                 <div class="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-xl my-2 font-medium">
                     💡 <b>Sugerencia Económica del Chef (2-3 extras):</b><br>
                     ${textoSugerencia}
-                </div>
-            `;
+                </div>`;
         }
 
         out.innerHTML = `
@@ -925,36 +923,8 @@ async function askChef(extra) {
             <p class="font-bold text-emerald-800 text-sm">🥗 Receta Saludable Adaptada del Chef</p>
             <p class="text-xs mt-1"><b>Ingredientes recomendados:</b> ${sanitize(ing)}</p>
             ${extrasHtml}
-            <p class="text-xs mt-2 leading-relaxed"><b>Preparación Nivel Chef:</b> Cocina los ingredientes magros a sartén con unas gotas de aceite de oliva o agua a fuego lento. Sazona únicamente con hierbas aromáticas (orégano o pimienta) eliminando la sal añadida para proteger tus arterias.</p>
-        `;
-    }
-}
-                // EVALUAMOS SI PRESIONÓ EL BOTÓN NARANJA DE EXTRAS
-                let extrasHtml = "";
-                if (extra) {
-                    const esDulce = lowerIng.includes('avena') || lowerIng.includes('leche') || lowerIng.includes('mansana') || lowerIng.includes('manzana') || lowerIng.includes('platano') || lowerIng.includes('plátano') || lowerIng.includes('fresa') || lowerIng.includes('frut') || lowerIng.includes('durazno') || lowerIng.includes('ciruela') || lowerIng.includes('pera') || lowerIng.includes('yogur') || lowerIng.includes('cereal') || lowerIng.includes('sereal') || lowerIng.includes('miel') || lowerIng.includes('canela') || lowerIng.includes('coco') || lowerIng.includes('almendra');
-
-                    let textoSugerencia = "Agrega 1/2 jitomate picado, 1/4 de cebolla morada y una pizca de orégano seco o aceite de oliva extra virgen para potenciar el valor antioxidante.";
-                    
-                    if (esDulce) {
-                        textoSugerencia = "Agrega una pizca de canela en polvo, una cucharada de chía o un puñadito de frutos rojos/nueces. Si usas yogurt, procura que sea <b>griego sin azúcar</b> o leche vegetal para no elevar la glucosa.";
-                    }
-
-                    extrasHtml = `
-                        <div class="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-xl my-2 font-medium">
-                            💡 <b>Sugerencia Económica del Chef (2-3 extras):</b><br>
-                            ${textoSugerencia}
-                        </div>
-                    `;
-                }
-
-                out.innerHTML = `
-                    ${warningHtml}
-                    <p class="font-bold text-emerald-800 text-sm">🥗 Receta Saludable Adaptada del Chef</p>
-                    <p class="text-xs mt-1"><b>Ingredientes recomendados:</b> ${sanitize(ing)}</p>
-                    ${extrasHtml}
-                    <p class="text-xs mt-2 leading-relaxed"><b>Preparación Nivel Chef:</b> Cocina los ingredientes magros a sartén con unas gotas de aceite de oliva o agua a fuego lento. Sazona únicamente con hierbas aromáticas (orégano o pimienta) eliminando la sal añadida para proteger tus arterias.</p>
-                `;
+            <p class="text-xs mt-2 leading-relaxed"><b>Preparación Nivel Chef:</b> Cocina los ingredientes magros a sartén con unas gotas de aceite de oliva o agua a fuego lento. Sazona únicamente con hierbas aromáticas (orégano o pimienta) eliminando la sal añadida para proteger tus arterias.</p>`;
+    
             }
         }
 
