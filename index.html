@@ -699,153 +699,85 @@ function nav(sec) {
         renderHistory();
         updateDashboard();
 
-        // CONSULTA A DRA. CARMEN CON SYSTEM PROMPT MÉDICO DETALLADO
-       async function consultDraCarmen() {
-            const input = document.getElementById('symptoms-input').value.trim();
-            const output = document.getElementById('carmen-response');
-            const btn = document.getElementById('btn-consult-carmen');
+        // CONSULTA A DRA. CARMEN CONECTADA A IA DE GEMINI
+async function consultDraCarmen() {
+    const input = document.getElementById('symptoms-input');
+    const out = document.getElementById('carmen-response');
+    const btn = document.getElementById('btn-consult-carmen');
+    const summaryElem = document.getElementById('dash-carmen-summary');
+    const textoUsuario = input ? input.value.trim() : '';
 
-            if (!input) {
-                alert('Por favor escribe o dicta tus síntomas.');
-                return;
-            }
+    if (!textoUsuario) {
+        alert("Por favor escribe o dicta tus síntomas o consulta antes de enviar.");
+        return;
+    }
 
-            output.innerHTML = "👩‍⚕️ <i>Dra. Carmen: Analizando cuadro clínico y métricas...</i>";
-            btn.disabled = true;
+    // Obtener mediciones actuales de los controles numéricos
+    const sys = document.getElementById('val-sys')?.innerText || '120';
+    const dia = document.getElementById('val-dia')?.innerText || '80';
+    const glu = document.getElementById('val-glu')?.innerText || '95';
 
-            await new Promise(resolve => setTimeout(resolve, 500));
+    out.innerHTML = `⏳ <span class="animate-pulse">La Dra. Carmen está analizando tus síntomas y métricas clínicas...</span>`;
+    if (btn) btn.disabled = true;
 
-            // Función para quitar acentos y limpiar texto contra dedazos
-            const cleanText = input.toLowerCase()
-                .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const promptDra = `
+Eres la Dra. Carmen, médica especialista en medicina preventiva, hipertensión y diabetes en Bienestar Vital Club.
 
-            // Búsqueda por raíces de palabras (tolera acentos, plurales y errores leves de dedo)
-            const tieneFrio = /fri|escalo/i.test(cleanText);
-            const tieneSuenoCansancio = /suen|cans|debil|fati|agot|somno/i.test(cleanText);
-            const tieneMareoZumbido = /mar|zumb|oid|tinni|inestab|vertig|cabeza.*gir/i.test(cleanText);
-            const tieneSudorTemblor = /sudor|transp|tembl|visin|borros|cegu/i.test(cleanText);
-            const tieneDolorCabeza = /cabez|nuca|sien|cefale|punzad/i.test(cleanText);
-            const tieneTaquicardia = /coraz|taqui|palpi|agita|rapi|brinc/i.test(cleanText);
-            const tienePulsacionBaja = /lent|bradi|pau/i.test(cleanText);
-            const tieneNauseaVomito = /nau|vomi|estoma|asco/i.test(cleanText);
-            const tieneSedBocaSeca = /sed|seca|orin|pipi/i.test(cleanText);
+DATOS DEL PACIENTE EN TIEMPO REAL:
+- Presión Arterial Actual: ${sys}/${dia} mmHg
+- Glucosa en Sangre Actual: ${glu} mg/dL
+- Síntomas / Consulta ingresada: "${textoUsuario}"
 
-            // Síntomas de alarma grave
-            const tieneDolorPecho = /pecho|opres|brazo|infart/i.test(cleanText);
-            const tieneDificultadRespirar = /air|respi|ahog|falta/i.test(cleanText);
+INSTRUCCIONES CLAVE DE RESPUESTA:
+1. Evalúa las cifras y síntomas ingresados con máximo rigor clínico y empatía.
+2. SI LA PRESIÓN ES MAYOR A 160/100, O SI EL PACIENTE TIENE SÍNTOMAS DE ALARMA (dolor de nuca, zumbido de oídos, visión borrosa, opresión en el pecho, mareo fuerte):
+   - DEBES EMITIR UNA ALERTA ROJA DE URGENCIA.
+   - Indícale de forma clara e inmediata acudir al servicio de emergencias o usar el botón de Clínicas/GPS de la PWA.
+   - JAMÁS sugieras esperar horas ni tomarlo con calma ante síntomas de alarma.
+3. NUNCA recetes medicamentos, ni ajustes dosis, ni sugieras automedicación.
+4. Si el usuario pregunta sobre remedios caseros (teses, licuados) para sustituir insulina o fármacos, advierte firmemente que NO deben suspensionar su tratamiento médico.
+5. Mantén un tono empático, profesional, claro y estructurado con puntos breves.
+`;
 
-            let analisisSintomas = [];
-            let recomendaciones = [];
-            let requiereMedicoExterno = false;
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messages: [{ role: 'user', content: promptDra }]
+            })
+        });
 
-            // --- 1. EVALUACIÓN DE PRESIÓN ARTERIAL (BAJA VS ALTA) ---
-            if (vSys < 90 || vDia < 60) { 
-                // PRESIÓN BAJA (Hipotensión)
-                analisisSintomas.push(`Tus niveles de presión arterial (${vSys}/${vDia} mmHg) marcan una presión baja (hipotensión).`);
-                
-                if (tieneFrio || tieneSuenoCansancio) {
-                    analisisSintomas.push("Al disminuir la presión, hay menor circulación en las extremidades y el cerebro, causando sensación de frío, cansancio y somnolencia.");
-                }
-                if (tieneMareoZumbido || tieneNauseaVomito) {
-                    analisisSintomas.push("La falta de presión adecuada al regar el cerebro se manifiesta con mareos al moverte, náuseas o zumbido de oídos.");
-                }
-                if (tieneTaquicardia) {
-                    analisisSintomas.push("Las palpitaciones que sientes son una reacción natural del corazón intentando latir más rápido para compensar la presión baja.");
-                }
-
-                recomendaciones.push("Recuéstate de inmediato con las piernas elevadas sobre cojines para dirigir la sangre al corazón y cerebro.");
-                recomendaciones.push("Cúbrete con una cobija e hidrátate poco a poco con un suero o caldo tibio.");
-
-            } else if (vSys >= 135 || vDia >= 85) { 
-                // PRESIÓN ALTA (Hipertensión)
-                analisisSintomas.push(`Tus registros de presión arterial (${vSys}/${vDia} mmHg) están por encima de lo normal (hipertensión).`);
-
-                if (tieneDolorCabeza) {
-                    analisisSintomas.push("El dolor en la nuca, la presión en las sienes o la cara caliente son reacciones directas de la tensión elevada en las arterias.");
-                }
-                if (tieneMareoZumbido) {
-                    analisisSintomas.push("La tensión alta en los vasos sanguíneos de la cabeza también puede producir sofoco, zumbido de oídos o mareo.");
-                }
-
-                recomendaciones.push("Siéntate en un lugar fresco y tranquilo, afloja la ropa ajustada y respira profundo por 10 minutos.");
-                recomendaciones.push("No consumas sal ni café por el momento y vuelve a medir tu presión en una hora.");
-
-            } else { 
-                // PRESIÓN NORMAL
-                analisisSintomas.push(`Tu presión arterial (${vSys}/${vDia} mmHg) se encuentra en niveles estables.`);
-            }
-
-            // --- 2. EVALUACIÓN DE GLUCOSA (BAJA VS ALTA) ---
-            if (vGlu < 70) { 
-                // GLUCOSA BAJA (Hipoglucemia)
-                analisisSintomas.push(`⚠️ Glucosa en ${vGlu} mg/dL (nivel bajo / hipoglucemia).`);
-                
-                if (tieneSudorTemblor || tieneSuenoCansancio) {
-                    analisisSintomas.push("La falta de azúcar en sangre provoca temblor en las manos, sudoración fría, visión borrosa y debilidad repentina.");
-                }
-
-                recomendaciones.push("Toma inmediatamente medio vaso de jugo de fruta, 3 galletas de avena o una cucharada de miel para subir tu azúcar.");
-
-            } else if (vGlu >= 180) { 
-                // GLUCOSA ALTA (Hiperglucemia)
-                analisisSintomas.push(`Tus niveles de azúcar en sangre se encuentran elevados (${vGlu} mg/dL).`);
-
-                if (tieneSedBocaSeca || tieneSuenoCansancio) {
-                    analisisSintomas.push("El exceso de azúcar suele provocar sed insaciable, boca seca, ganas frecuentes de orinar y cansancio.");
-                }
-
-                recomendaciones.push("Toma abundante agua natural para ayudar a eliminar el exceso de glucosa a través de la orina.");
-            }
-
-            // --- 3. FILTRO DE ALARMA / MODO DESCONOCIDO ---
-            if (tieneDolorPecho || tieneDificultadRespirar) {
-                requiereMedicoExterno = true;
-                analisisSintomas.push("⚠️ Atención: Reportas molestias como falta de aire o dolor en el pecho.");
-            }
-
-            // Si el texto no coincidió con ninguna raíz conocida y los valores son normales
-            const identificado = tieneFrio || tieneSuenoCansancio || tieneMareoZumbido || tieneSudorTemblor || tieneDolorCabeza || tieneTaquicardia || tieneSedBocaSeca;
-            if (!identificado && vSys >= 90 && vSys < 135 && vDia >= 60 && vDia < 85 && vGlu >= 70 && vGlu < 180) {
-                requiereMedicoExterno = true;
-            }
-
-          // --- 4. ARMADO DE LA RESPUESTA ---
-            let respuestaDoc = `Hola. Analicé lo que me escribiste ("${input}") junto con tus lecturas actuales.\n\n`;
-
-            respuestaDoc += "🔍 **Diagnóstico Preventivo:**\n" + analisisSintomas.join(" ") + "\n\n";
-
-            if (recomendaciones.length > 0) {
-                respuestaDoc += "💡 **Medidas Inmediatas:**\n- " + recomendaciones.join("\n- ") + "\n\n";
-            }
-
-            if (requiereMedicoExterno) {
-                respuestaDoc += "🏥 **Atención Médica Recomendada:**\nDado que presentas síntomas específicos o fuera de patrón, es conveniente que te valore un médico. No olvides consultar la ubicación de clínicas y hospitales en el **GPS de la mini app** para encontrar opciones cercanas.";
-            } else {
-                const txt = (input || "").toLowerCase();
-                
-                if (txt.includes("cabes") || txt.includes("caves") || txt.includes("migra") || txt.includes("doler") || txt.includes("duele") || txt.includes("dolor") || txt.includes("headache") || txt.includes("punza")) {
-                    respuestaDoc += "\n\n🔎 **Diagnóstico Preventivo:**\nTus métricas de presión y glucosa están estables, pero los síntomas que describes apuntan a un cuadro de dolor de cabeza o migraña.\n\n💡 **Medidas Inmediatas:**\n- Descansa en una habitación oscura y en silencio por 20 minutos.\n- Coloca una compresa fría en la frente o en la nuca.\n- Evita mirar la pantalla del celular y mantente bien hidratado con agua al tiempo.";
-                } 
-                else if (txt.includes("quem") || txt.includes("kem") || txt.includes("aceit") || txt.includes("fuego") || txt.includes("ampoll") || txt.includes("piel")) {
-                    respuestaDoc += "\n\n🔎 **Diagnóstico Preventivo:**\nReportas una quemadura leve o lesión por calor en la piel.\n\n💡 **Medidas Inmediatas:**\n- Coloca la zona afectada bajo un chorro de agua fresca del grifo durante 10 a 15 minutos continuos.\n- ⚠️ **NO apliques** pasta de dientes, aceite, mantequilla ni jitomate, ya que pueden infectar la herida.\n- Si salen ampollas grandes o el dolor es insoportable, consulta la sección de Clínicas en la mini app.";
-                }
-                else if (txt.includes("mari") || txt.includes("mared") || txt.includes("marea") || txt.includes("mareo") || txt.includes("taksi") || txt.includes("taxi") || txt.includes("uber") || txt.includes("antro") || txt.includes("fiesta") || txt.includes("ansied")) {
-                    respuestaDoc += "\n\n🔎 **Diagnóstico Preventivo:**\nPresentas mareo, desorientación o malestar en un trayecto/salida nocturna.\n\n💡 **Medidas Inmediatas:**\n- Si vas en un vehículo, pide fijar la mirada en el horizonte y solicita ventilación abriendo la ventana.\n- Respira profundo (inhala en 4 segundos, sostén 4 y exhala en 4) para calmar la frecuencia cardíaca.\n- Si te sientes inseguro, usa el **Botón de Emergencia / Círculo de Confianza** de la mini app para enviar tu ubicación por WhatsApp a tus familiares.";
-                }
-                else if (txt.includes("nause") || txt.includes("nausi") || txt.includes("noce") || txt.includes("bomi") || txt.includes("vomi") || txt.includes("estam") || txt.includes("estom") || txt.includes("diar")) {
-                    respuestaDoc += "\n\n🔎 **Diagnóstico Preventivo:**\nReportas malestar gastrointestinal o náuseas.\n\n💡 **Medidas Inmediatas:**\n- Toma pequeños sorbos de suero oral o agua natural a temperatura ambiente (no fría de golpe).\n- Mantente sentado o semi-reclinado, evita acostarte por completo justo después de sentir náuseas.\n- Evita alimentos grasos, irritantes o lácteos por las próximas horas.";
-                }
-                else {
-                    respuestaDoc += "\n\nRecuerda mantener tus hábitos saludables. Si en algún momento llegas a presentar molestias o algún malestar, puedes consultar la sección de Clínicas o revisar el **GPS de la mini app** para ubicar atención médica cercana.";
-                }
-            }
-
-            output.innerText = `👩‍⚕️ Dra. Carmen: ${respuestaDoc}`;
-            const summaryElem = document.getElementById('dash-carmen-summary');
-            if (summaryElem) summaryElem.innerText = respuestaDoc;
-
-            btn.disabled = false;
+        const responseText = await response.text();
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            throw new Error('Respuesta inválida del servidor: ' + responseText);
         }
+
+        if (!response.ok) {
+            const apiMsg = (data && data.error && (data.error.message || data.error)) || 'Error desconocido';
+            throw new Error('HTTP ' + response.status + ': ' + apiMsg);
+        }
+
+        const text = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim();
+
+        if (!text) {
+            throw new Error('Gemini no devolvió texto');
+        }
+
+        const respuestaFormateada = `👩‍⚕️ <b>Dra. Carmen:</b><br><br>${text.replace(/\n/g, '<br>')}`;
+        out.innerHTML = respuestaFormateada;
+        if (summaryElem) summaryElem.innerHTML = respuestaFormateada;
+
+    } catch (err) {
+        console.error('[Dra. Carmen] Error:', err);
+        out.innerHTML = `<div class="p-3 bg-red-100 text-red-800 rounded-xl text-xs"><b>Error al consultar con la Dra. Carmen:</b> ${err.message}. Intenta nuevamente.</div>`;
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
 
 
       // CHEF NUTRICIONAL CON ADVERTENCIA DE SAL, SODIO Y AZÚCAR
