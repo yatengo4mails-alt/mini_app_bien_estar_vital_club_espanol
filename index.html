@@ -864,7 +864,7 @@ async function askChef(extra) {
 2. Si detectas ingredientes dañinos (como salchichas o refrescos), incluye PRIMERO un apartado destacado que diga: "🚨 ADVERTENCIA MÉDICA DEL CHEF" explicando con claridad las consecuencias negativas de esos alimentos para la presión arterial y la glucosa en sangre.3. Sugiere cómo reemplazar o limitar esos ingredientes dañinos y prepara un platillo gourmet saludable, apetitoso y de bajo índice glucémico. ${extra ? 'Agrega 2 o 3 ingredientes económicos saludables adicionales.' : ''}4. Da la receta paso a paso de forma profesional y apetitosa.`;
 
     try {
-        const response = await fetch('/api/chat.js’, {
+        const response = await fetch('/api/chat.js', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt: promptText, message: promptText })
