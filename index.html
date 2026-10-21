@@ -357,34 +357,11 @@
             </button>
             <div id="saved-contacts-list" class="text-xs text-rose-100 pt-1 space-y-1"></div>
 
-            <a id="btn-whatsapp-alert" href="#" onclick="
-    const contacts = JSON.parse(localStorage.getItem('bvc_contacts') || '[]');
-    if(contacts.length === 0) { alert('Guarda un contacto de familiar primero.'); return false; }
-    const phone = contacts[0].phone;
-    
-    // Obtiene estrictamente la posición real del mapa Leaflet o de tus variables globales
-    let lat = null, lng = null;
-    if (typeof marker !== 'undefined' && marker.getLatLng) {
-        lat = marker.getLatLng().lat;
-        lng = marker.getLatLng().lng;
-    } else if (typeof map !== 'undefined' && map.getCenter) {
-        lat = map.getCenter().lat;
-        lng = map.getCenter().lng;
-    } else if (typeof userLat !== 'undefined' && typeof userLng !== 'undefined') {
-        lat = userLat;
-        lng = userLng;
-    }
-
-    if (!lat || !lng) {
-        alert('Actualiza tu GPS primero para obtener la ubicación exacta.');
-        return false;
-    }
-
-    this.href = `https://wa.me/${phone}?text=` + encodeURIComponent(`🚨 URGENTE: Emergencia de salud. Mi ubicación GPS: https://maps.google.com/?q=${lat},${lng}`);
-" target="_blank" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md mt-2">
+           <button type="button" id="btn-whatsapp-alert" onclick="sendFamilyAlert()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold py-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md mt-2">
     🟢 Enviar Alerta GPS de Urgencia a Familiar
-</a>
-            </a>
+</button>
+
+   
         </div>
     </div>
 
@@ -1012,30 +989,149 @@ async function askChef(extra) {
         }
         renderContacts();
 
-       function sendFamilyAlert() {
-            const contacts = JSON.parse(localStorage.getItem('bvc_contacts') || '[]');
-            if(contacts.length === 0) {
-                alert('Guarda al menos un contacto de emergencia primero.');
-                return;
-            }
-            const phone = contacts[0].phone;
-            
-            // Si el GPS ya leyó tu ubicación real, la usa; si no, la pide de emergencia al instante:
-            if (typeof userLat !== 'undefined' && userLat !== 19.4326) {
-                const msg = encodeURIComponent(`🚨 URGENTE: Soy un usuario de Bienestar Vital Club. Tengo una emergencia de salud. Mi ubicación GPS en tiempo real es: https://maps.google.com/?q=${userLat},${userLng}. Por favor ayúdame.`);
-                window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
-            } else {
-                navigator.geolocation.getCurrentPosition((pos) => {
-                    const uLat = pos.coords.latitude;
-                    const uLng = pos.coords.longitude;
-                    const msg = encodeURIComponent(`🚨 URGENTE: Soy un usuario de Bienestar Vital Club. Tengo una emergencia de salud. Mi ubicación GPS en tiempo real es: https://maps.google.com/?q=${uLat},${uLng}. Por favor ayúdame.`);
-                    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
-                }, () => {
-                    const msg = encodeURIComponent(`🚨 URGENTE: Soy un usuario de Bienestar Vital Club. Tengo una emergencia de salud. Por favor comunícate conmigo.`);
-                    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
-                }, { enableHighAccuracy: true });
-            }
-        }
+       // ===== SOS WhatsApp =====
+let sosBusy = false;
+
+// Normaliza el teléfono para que wa.me no falle
+function normalizeWaPhone(raw) {
+    let d = String(raw || '').replace(/\D/g, '');
+    d = d.replace(/^00/, '');
+    if (d.length === 10) d = '52' + d; // 10 dígitos: asume México
+    else if (d.length === 13 && d.startsWith('521')) d = '52' + d.slice(3);
+    return d.length >= 11 && d.length <= 15 ? d : '';
+}
+
+function buildWaUrl(phone, lat, lng) {
+    let msg = '🚨 URGENTE: Soy usuario de Bienestar Vital Club y tengo una emergencia de salud. Por favor comunícate conmigo de inmediato.';
+    if (lat != null && lng != null) {
+        msg += '\n📍 Mi ubicación GPS:\nhttps://www.google.com/maps/search/?api=1&query=' + Number(lat).toFixed(6) + ',' + Number(lng).toFixed(6);
+    }
+    return 'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg);
+}
+
+function openWhatsApp(url) {
+    try {
+        const w = window.open(url, '_blank');
+        if (!w) { window.location.href = url; } // Si se bloquea la ventana, navega en la misma
+        else { try { w.opener = null; } catch (e) {} }
+    } catch (e) {
+        window.location.href = url;
+    }
+}
+
+// Tarjeta flotante con enlaces reales y botón al 911 de respaldo
+function showSosBox({ text, waUrl, waLabel }) {
+    let box = document.getElementById('sos-box');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'sos-box';
+        box.setAttribute('role', 'alert');
+        box.className = 'bg-white border-2 border-rose-500 rounded-2xl shadow-2xl p-3 text-xs text-slate-800';
+        box.style.cssText = 'position:fixed;left:12px;right:12px;bottom:84px;z-index:99999;';
+        document.body.appendChild(box);
+    }
+    box.textContent = '';
+    
+    const p = document.createElement('p');
+    p.className = 'font-bold mb-2';
+    p.textContent = text;
+    box.appendChild(p);
+
+    const row = document.createElement('div');
+    row.className = 'flex flex-wrap gap-2';
+
+    if (waUrl) {
+        const a = document.createElement('a');
+        a.href = waUrl;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.className = 'bg-emerald-500 text-white font-bold px-3 py-2 rounded-lg';
+        a.textContent = waLabel || '📲 Abrir WhatsApp';
+        row.appendChild(a);
+    }
+
+    const call = document.createElement('a');
+    call.href = 'tel:911';
+    call.className = 'bg-rose-600 text-white font-bold px-3 py-2 rounded-lg';
+    call.textContent = '📞 Llamar al 911';
+    row.appendChild(call);
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'text-slate-500 font-bold px-3 py-2';
+    close.textContent = '✕';
+    close.addEventListener('click', () => box.remove());
+    row.appendChild(close);
+
+    box.appendChild(row);
+}
+
+function sendFamilyAlert() {
+    if (sosBusy) return;
+
+    // 1. Contacto (a prueba de datos corruptos)
+    let contacts = [];
+    try { contacts = JSON.parse(localStorage.getItem('bvc_contacts') || '[]'); }
+    catch (e) { console.error('[SOS] Contactos ilegibles:', e); }
+
+    const phone = normalizeWaPhone(contacts[0] && contacts[0].phone);
+
+    if (!phone) {
+        showSosBox({ text: '⚠️ Guarda primero un contacto de emergencia con su WhatsApp y clave de país (ej. +52 55 1234 5678). Si es una emergencia, llama al 911.' });
+        return;
+    }
+
+    // 2. Si ya hay GPS real, abre WhatsApp al instante
+    const haveGps = (typeof gpsReady !== 'undefined')
+        ? gpsReady
+        : (typeof userLat !== 'undefined' && userLat !== 19.4326);
+
+    if (haveGps) {
+        const url = buildWaUrl(phone, userLat, userLng);
+        showSosBox({ text: '📲 Abriendo WhatsApp con tu ubicación. Si no se abre, toca el botón verde.', waUrl: url, waLabel: '📲 Abrir WhatsApp' });
+        openWhatsApp(url);
+        return;
+    }
+
+    // 3. Sin GPS previo: intenta obtenerlo en máx 8s
+    const urlSinGps = buildWaUrl(phone, null, null);
+
+    if (!navigator.geolocation) {
+        showSosBox({ text: '📲 Abriendo WhatsApp sin ubicación. Si no se abre, toca el botón verde.', waUrl: urlSinGps, waLabel: '📲 Abrir WhatsApp' });
+        openWhatsApp(urlSinGps);
+        return;
+    }
+
+    sosBusy = true;
+    let settled = false;
+
+    showSosBox({ text: '📍 Obteniendo tu ubicación (máx. 8 s)… Si es urgente, no esperes:', waUrl: urlSinGps, waLabel: 'Enviar ahora sin ubicación' });
+
+    const finish = (url, text, label) => {
+        if (settled) return;
+        settled = true;
+        sosBusy = false;
+        clearTimeout(watchdog);
+        showSosBox({ text, waUrl: url, waLabel: label });
+        openWhatsApp(url);
+    };
+
+    const watchdog = setTimeout(() => {
+        finish(urlSinGps, '⚠️ No se obtuvo tu ubicación a tiempo. Abriendo WhatsApp sin ella. Si no se abre, toca el botón verde.', '📲 Abrir WhatsApp');
+    }, 8000);
+
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            const url = buildWaUrl(phone, pos.coords.latitude, pos.coords.longitude);
+            finish(url, '✅ Ubicación lista. Abriendo WhatsApp. Si no se abre, toca el botón verde.', '📲 Abrir WhatsApp con mi ubicación');
+        },
+        (err) => {
+            console.error('[SOS] Geolocalización falló:', err && err.code, err && err.message);
+            finish(urlSinGps, '⚠️ No se pudo obtener tu ubicación. Abriendo WhatsApp sin ella. Si no se abre, toca el botón verde.', '📲 Abrir WhatsApp');
+        },
+        { enableHighAccuracy: true, timeout: 7000, maximumAge: 120000 }
+    );
+}
 
         function searchNearby(term) {
             updateNavLinks(term);
