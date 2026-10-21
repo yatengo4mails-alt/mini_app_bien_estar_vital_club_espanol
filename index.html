@@ -402,27 +402,28 @@
     </div>
 
     <!-- CONTENEDOR MAPA LEAFLET EN VIVO CON GPS -->
-    <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
-        <div class="flex items-center justify-between">
-            <h3 class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                🌐 Ubicación GPS Detectada
-            </h3>
-            <button onclick="initGPSMap()" class="text-xs text-blue-600 font-bold">Actualizar GPS</button>
-        </div>
-
-        <div id="leaflet-map"></div>
-
-        <p class="text-[11px] text-slate-500 font-medium pt-1">🧩 Iniciar ruta hacia punto seleccionado:</p>
-
-        <div class="grid grid-cols-2 gap-2">
-            <a id="btn-gmaps" href="https://www.google.com/maps" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-2.5 px-3 rounded-xl text-center flex items-center justify-center gap-1.5 shadow-sm">
-                🗺️ Google Maps
-            </a>
-            <a id="btn-waze" href="https://waze.com" target="_blank" class="bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs py-2.5 px-3 rounded-xl text-center flex items-center justify-center gap-1.5 shadow-sm">
-                🚀 Waze
-            </a>
-        </div>
+<div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+    <div class="flex items-center justify-between">
+        <h3 class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+            🌐 Ubicación GPS Detectada
+        </h3>
+        <button id="btn-gps-refresh" type="button" onclick="initGPSMap()" class="text-xs text-blue-600 font-bold">Actualizar GPS</button>
     </div>
+
+    <div id="leaflet-map" class="rounded-xl overflow-hidden" style="height:250px; min-height:250px; width:100%;"></div>
+    <p id="gps-status" class="text-[11px] text-slate-500 font-medium">Toca "Actualizar GPS" para detectar tu ubicación.</p>
+
+    <p id="nav-label" class="text-[11px] text-slate-500 font-medium pt-1">🧩 Abrir búsqueda de "hospitales y clínicas" en:</p>
+
+    <div class="grid grid-cols-2 gap-2">
+        <a id="btn-gmaps" href="https://www.google.com/maps/search/hospitales%20y%20cl%C3%ADnicas" target="_blank" rel="noopener" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-2.5 px-3 rounded-xl text-center flex items-center justify-center gap-1.5 shadow-sm">
+            🗺️ Google Maps
+        </a>
+        <a id="btn-waze" href="https://waze.com/ul?q=hospitales%20y%20cl%C3%ADnicas&utm_source=bienestar_vital_club" target="_blank" rel="noopener" class="bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs py-2.5 px-3 rounded-xl text-center flex items-center justify-center gap-1.5 shadow-sm">
+            🚀 Waze
+        </a>
+    </div>
+</div>
 </section>
 
         <!-- PANTALLA 5: BIBLIOTECA PREVENTIVA & RELAJACIÓN -->
@@ -1065,99 +1066,185 @@ async function askChef(extra) {
         let userLat = 19.4326;
         let userLng = -99.1332;
 
-        // Función para inicializar o actualizar el mapa con el GPS real
-        function initGPSMap() {
-            if (!navigator.geolocation) {
-                alert('Tu navegador no soporta geolocalización.');
-                return;
+        // ===== Variables globales de GPS =====
+let gpsReady = false;   
+let gpsBusy = false;
+let mapSized = false;
+let navTerm = 'hospitales y clínicas';
+
+function setGpsStatus(text, isError) {
+    const el = document.getElementById('gps-status');
+    if (!el) { console.log('[GPS]', text); return; }
+    el.textContent = text;
+    el.className = 'text-[11px] font-medium ' + (isError ? 'text-amber-700' : 'text-slate-500');
+}
+
+// Recalcula el tamaño del mapa cuando el contenedor se vuelve visible
+function fixMapSize() {
+    const el = document.getElementById('leaflet-map');
+    if (!map || !el || el.offsetWidth === 0) return; 
+    map.invalidateSize();
+    if (!mapSized) { 
+        mapSized = true;
+        map.setView([userLat, userLng], gpsReady ? 15 : 12, { animate: false });
+    }
+}
+
+function watchMapSize(el) {
+    if ('ResizeObserver' in window) new ResizeObserver(fixMapSize).observe(el);
+    window.addEventListener('resize', fixMapSize);
+    window.addEventListener('orientationchange', () => setTimeout(fixMapSize, 300));
+}
+
+// Crea el mapa una sola vez sin romper si no hay GPS aún
+function ensureMap() {
+    if (map) return map;
+    const el = document.getElementById('leaflet-map');
+    if (!el) return null;
+    if (typeof L === 'undefined') {
+        setGpsStatus('⚠️ No se pudo cargar el mapa. Usa los botones de abajo para buscar con Google Maps o Waze.', true);
+        return null;
+    }
+    map = L.map(el).setView([userLat, userLng], 12);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    watchMapSize(el);
+    setTimeout(fixMapSize, 300);
+    return map;
+}
+
+// Actualiza enlaces de navegación para Google Maps y Waze
+function updateNavLinks(queryTerm) {
+    if (queryTerm) navTerm = queryTerm;
+    const term = encodeURIComponent(navTerm);
+    const gmaps = document.getElementById('btn-gmaps');
+    const waze = document.getElementById('btn-waze');
+    const label = document.getElementById('nav-label');
+
+    if (gmaps) {
+        gmaps.href = gpsReady
+            ? `https://www.google.com/maps/search/${term}/@${userLat},${userLng},15z`
+            : `https://www.google.com/maps/search/${term}`;
+    }
+
+    if (waze) {
+        waze.href = `https://waze.com/ul?q=${term}&utm_source=bienestar_vital_club`;
+    }
+
+    if (label) label.textContent = `🧩 Abrir búsqueda de "${navTerm}" en:`;
+}
+
+// Inicializa o actualiza el mapa con el GPS real
+function initGPSMap() {
+    ensureMap();
+    updateNavLinks();
+    const btnGPS = document.getElementById('btn-gps-refresh');
+
+    if (!navigator.geolocation) {
+        setGpsStatus('⚠️ Tu navegador no soporta geolocalización. Los botones buscarán con la ubicación de tu dispositivo.', true);
+        return;
+    }
+
+    if (gpsBusy) return;
+    gpsBusy = true;
+    if (btnGPS) btnGPS.textContent = '⏳ Buscando GPS...';
+    setGpsStatus('Buscando tu ubicación…');
+
+    const done = () => {
+        gpsBusy = false;
+        if (btnGPS) btnGPS.textContent = 'Actualizar GPS';
+    };
+
+    const onSuccess = (pos) => {
+        userLat = pos.coords.latitude;
+        userLng = pos.coords.longitude;
+        gpsReady = true;
+
+        const m = ensureMap();
+        if (m) {
+            m.setView([userLat, userLng], 15);
+            if (!marker) {
+                marker = L.marker([userLat, userLng]).addTo(m).bindPopup('📍 Tu ubicación actual').openPopup();
+            } else {
+                marker.setLatLng([userLat, userLng]);
             }
-
-            const btnGPS = document.querySelector('button[onclick="initGPSMap()"]');
-            if(btnGPS) btnGPS.innerText = "⏳ Buscando GPS...";
-
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    userLat = position.coords.latitude;
-                    userLng = position.coords.longitude;
-
-                    const gmaps = document.getElementById('btn-gmaps');
-                    const waze = document.getElementById('btn-waze');
-                    if(gmaps) gmaps.href = `https://www.google.com/maps/search/?api=1&query=${userLat},${userLng}`;
-                    if(waze) waze.href = `https://waze.com/ul?ll=${userLat}&lat=${userLat}&lon=${userLng}&navigate=yes`;
-
-                    if (document.getElementById('leaflet-map')) {
-                        if (!map) {
-                            map = L.map('leaflet-map').setView([userLat, userLng], 15);
-                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                                attribution: '&copy; OpenStreetMap contributors'
-                            }).addTo(map);
-                            marker = L.marker([userLat, userLng]).addTo(map).bindPopup('📍 Tu ubicación actual').openPopup();
-                        } else {
-                            map.setView([userLat, userLng], 15);
-                            marker.setLatLng([userLat, userLng]);
-                        }
-                    }
-
-                    if(btnGPS) btnGPS.innerText = "Actualizar GPS";
-                },
-                (error) => {
-                    alert('No se pudo obtener tu ubicación. Revisa los permisos de GPS de tu navegador.');
-                    if(btnGPS) btnGPS.innerText = "Actualizar GPS";
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
+            fixMapSize();
+            setTimeout(fixMapSize, 300);
         }
 
-        // Función para buscar clínicas o farmacias cercanas
-        function searchPlaces(tipo) {
-            if (!userLat || !userLng) {
-                alert('Primero actualiza tu GPS para buscar servicios cercanos.');
-                return;
-            }
+        updateNavLinks();
+        const acc = pos.coords.accuracy ? ` (±${Math.round(pos.coords.accuracy)} m)` : '';
+        setGpsStatus('📍 Ubicación detectada' + acc, false);
+        done();
+    };
 
-            let query = tipo === 'clinicas' ? 'hospitales y clinicas' : 'farmacias 24 horas';
-            const url = `https://www.google.com/maps/search/${encodeURIComponent(query)}/@${userLat},${userLng},15z`;
-            window.open(url, '_blank');
-        }
+    const locate = (highAccuracy) => {
+        navigator.geolocation.getCurrentPosition(
+            onSuccess,
+            (err) => {
+                if (highAccuracy && err.code !== 1) { locate(false); return; }
+                const msgs = {
+                    1: 'Permiso de ubicación denegado. Actívalo en los ajustes del navegador.',
+                    2: 'Ubicación no disponible. Revisa que el GPS esté activo.',
+                    3: 'La ubicación tardó demasiado. Intenta de nuevo.'
+                };
+                setGpsStatus('⚠️ ' + (msgs[err.code] || 'No se pudo obtener tu ubicación.'), true);
+                done();
+            },
+            highAccuracy
+                ? { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                : { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+        );
+    };
 
-        // Función para guardar el contacto de emergencia
-        function saveEmergencyContact() {
-            const nameInput = document.getElementById('contact-name');
-            const phoneInput = document.getElementById('contact-phone');
-            
-            if (!nameInput.value || !phoneInput.value) {
-                alert('Por favor escribe el nombre y el teléfono con clave de país.');
-                return;
-            }
+    locate(true);
+}
 
-            const contacts = [{ name: nameInput.value, phone: phoneInput.value }];
-            localStorage.setItem('bvc_contacts', JSON.stringify(contacts));
-            
-            nameInput.value = '';
-            phoneInput.value = '';
-            loadSavedContacts();
-            alert('¡Familiar guardado con éxito en tu Círculo de Confianza!');
-        }
+// Actualiza término de búsqueda
+function searchPlaces(tipo) {
+    updateNavLinks(tipo === 'clinicas' ? 'hospitales y clínicas' : 'farmacias 24 horas');
+    window.open(document.getElementById('btn-gmaps').href, '_blank', 'noopener');
+}
 
-        // Función para mostrar los contactos guardados
-        function loadSavedContacts() {
-            const listDiv = document.getElementById('saved-contacts-list');
-            if (!listDiv) return;
-            
-            const contacts = JSON.parse(localStorage.getItem('bvc_contacts') || '[]');
-            if (contacts.length === 0) {
-                listDiv.innerHTML = '<span class="text-rose-200">Ningún familiar guardado aún.</span>';
-                return;
-            }
+// Función para guardar el contacto de emergencia
+function saveEmergencyContact() {
+    const nameInput = document.getElementById('contact-name');
+    const phoneInput = document.getElementById('contact-phone');
+    
+    if (!nameInput.value || !phoneInput.value) {
+        alert('Por favor escribe el nombre y el teléfono con clave de país.');
+        return;
+    }
 
-            listDiv.innerHTML = contacts.map(c => `<div>👤 <b>${c.name}</b> (${c.phone})</div>`).join('');
-        }
+    const contacts = [{ name: nameInput.value, phone: phoneInput.value }];
+    localStorage.setItem('bvc_contacts', JSON.stringify(contacts));
+    
+    nameInput.value = '';
+    phoneInput.value = '';
+    loadSavedContacts();
+    alert('¡Familiar guardado con éxito en tu Círculo de Confianza!');
+}
 
-        // Cargar contactos e inicializar al abrir la página
-        window.addEventListener('DOMContentLoaded', () => {
-            loadSavedContacts();
+// Función para mostrar los contactos guardados
+function loadSavedContacts() {
+    const listDiv = document.getElementById('saved-contacts-list');
+    if (!listDiv) return;
+    
+    const contacts = JSON.parse(localStorage.getItem('bvc_contacts') || '[]');
+    if (contacts.length === 0) {
+        listDiv.innerHTML = '<span class="text-rose-200">Ningún familiar guardado aún.</span>';
+        return;
+    }
 
-        });
+    listDiv.innerHTML = contacts.map(c => `<div>👤 <b>${c.name}</b> (${c.phone})</div>`).join('');
+}
+
+// Cargar contactos e inicializar al abrir la página
+window.addEventListener('DOMContentLoaded', () => {
+    loadSavedContacts();
+});
 
         // ESTADO DE RED
         window.addEventListener('online', () => document.getElementById('offline-banner').classList.add('hidden'));
