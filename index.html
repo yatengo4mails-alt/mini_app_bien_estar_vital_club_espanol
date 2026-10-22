@@ -341,7 +341,6 @@ function renderRecetas() {
   `;
   box.appendChild(btnCompleto);
 }
-
 function renderGuias() {
   const box = $('guias');
   GUIAS.forEach(g => { const a = el('a', g[0], box); a.href = g[1]; a.target = '_blank'; a.rel = 'noopener noreferrer sponsored'; a.className = 'btn alt'; a.style.marginBottom = '8px'; });
