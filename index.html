@@ -331,15 +331,11 @@ function renderRecetas() {
     el('p', 'Ingredientes: ' + r.ing, d); el('p', 'Preparación: ' + r.pasos, d);
     if (r.origen) el('p', 'Dato: ' + r.origen, d).className = 'mu';
   });
-// Botón para ver el recetario completo en la pestaña de guías
-  const btnCompleto = document.createElement('div');
-  btnCompleto.className = 'mt-4 text-center';
-  btnCompleto.innerHTML = `
-    <button onclick="switchTab('guias')" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-3 px-4 rounded-xl shadow transition duration-200 text-sm flex items-center justify-center gap-2">
-      <span>📖</span> Ver colección completa de recetarios
-    </button>
-  `;
-  box.appendChild(btnCompleto);
+  // Botón para ver el recetario completo en la pestaña de guías
+  const btnCompleto = el('button', '📖 Ver colección completa de recetarios', box);
+  btnCompleto.className = 'btn';
+  btnCompleto.style.marginTop = '12px';
+  btnCompleto.addEventListener('click', () => go('biblioteca'));
 }
 function renderGuias() {
   const box = $('guias');
