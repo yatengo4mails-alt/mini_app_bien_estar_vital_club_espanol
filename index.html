@@ -694,7 +694,8 @@ const RED_FLAG_PATTERNS = [
     /confus|desorient/,
     /(vision|vista).{0,15}(borros|doble)|no veo|perdi.{0,6}vision/,
     /dolor de cabeza.{0,25}(fuerte|intenso|subito|repentino|peor)|(peor|fuerte|intenso|subito|repentino).{0,15}dolor de cabeza/,
-    /vomit.{0,20}sangre|sangre.{0,15}(heces|vomito)/
+    /vomit.{0,20}sangre|sangre.{0,15}(heces|vomito)/,
+    /zumbido.{0,15}(oidos|oido)|dolor.{0,10}nuca/
 ];
 
 function renderCarmen(out, banner, text) {
@@ -710,6 +711,27 @@ function renderCarmen(out, banner, text) {
     p.className = 'whitespace-pre-wrap';
     p.textContent = text;
     out.appendChild(p);
+}
+
+// Orientación general y segura cuando la IA no está disponible (sin medicamentos)
+function carmenLocalAdvice(emergencia, rojo) {
+    const lines = [];
+    if (emergencia) {
+        lines.push('• Llama al 911 o acude a urgencias ahora. No esperes a que se pase solo.');
+        lines.push('• No conduzcas. Siéntate, mantente en reposo y no te quedes solo/a.');
+    } else if (rojo) {
+        lines.push('• Siéntate y descansa 5 minutos sin hablar ni usar el celular; luego mide de nuevo.');
+        lines.push('• Si la cifra sigue alta, comunícate con tu médico hoy.');
+        lines.push('• Si aparece dolor de pecho, falta de aire, dolor de cabeza intenso, visión borrosa, confusión o debilidad de un lado del cuerpo, llama al 911.');
+    } else {
+        lines.push('• Siéntate unos minutos y vuelve a medir tu presión en reposo (brazo a la altura del corazón, sin hablar).');
+        lines.push('• Por ahora evita cafeína, tabaco, esfuerzo intenso y comidas muy saladas.');
+        lines.push('• Anota tus cifras y síntomas en la Bitácora para llevarlos a tu médico.');
+        lines.push('• Si empeoras o aparece dolor de pecho, falta de aire, visión borrosa, confusión o debilidad de un lado del cuerpo, llama al 911.');
+    }
+    lines.push('• No te automediques ni cambies tu tratamiento sin indicación de tu médico.');
+    lines.push('\nEsta orientación es general y no sustituye una consulta médica.');
+    return lines.join('\n');
 }
 
 async function consultDraCarmen() {
@@ -833,13 +855,18 @@ ${texto}
             const primera = respuesta.split('\n').find(l => l.trim()) || '';
             summaryElem.textContent = primera.slice(0, 200);
         }
-    } catch (err) {
+   } catch (err) {
         console.error('[Dra. Carmen] Fallo en consultDraCarmen:', err);
-        const msg = err.name === 'AbortError'
-            ? 'La consulta tardó demasiado. Intenta de nuevo en unos segundos.'
-            : 'No pude conectarme con la Dra. Carmen en este momento. Intenta de nuevo en unos minutos.';
-        // El banner de seguridad se conserva aunque falle la API
-        renderCarmen(out, banner, msg + (rojo ? ' Mientras tanto, sigue las indicaciones de la alerta de arriba.' : ''));
+        const aviso = err.name === 'AbortError'
+            ? 'La consulta tardó demasiado.'
+            : 'La Dra. Carmen no está disponible en este momento.';
+        // El banner de seguridad se conserva aunque falle la IA
+        renderCarmen(
+            out,
+            banner,
+            aviso + ' Mientras se restablece, esta es una orientación general de seguridad:\n\n' +
+            carmenLocalAdvice(emergencia, rojo)
+        );
     } finally {
         clearTimeout(timer);
         btn.disabled = false;
