@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#020617">
+<title>Bienestar Vital Club — Tu bitácora de presión y glucosa</title>
+<meta name="description" content="Organiza las lecturas de presión y glucosa de tus padres y llévalas listas a su consulta.">
+<link rel="icon" href="img/logo.webp>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={theme:{extend:{colors:{brand:{50:'#f0fdf4',100:'#dcfce7',400:'#4ade80',500:'#16a34a',600:'#15803d',700:'#166534',900:'#14532d'}}}}}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{font-family:'Inter',system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+.step-container:not(.hidden){animation:rise .28s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.opt:active{transform:scale(.98)}
+.opt.sel{border-color:#16a34a;background:rgba(22,163,74,.12)}
+.snap{scrollbar-width:none}.snap::-webkit-scrollbar{display:none}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased min-h-screen flex flex-col">
+
+<header class="w-full max-w-md mx-auto px-4 pt-5 pb-2">
+  <div class="flex items-center justify-between mb-3">
+    <div class="flex items-center gap-2.5">
+      <button id="back" type="button" onclick="goBack()" class="hidden text-slate-300 text-xl px-1" aria-label="Volver">←</button>
+      <img src="img/logo.webp" alt="Bienestar Vital Club" width="32" height="32" class="w-8 h-8 rounded-lg object-cover bg-white" onerror="this.style.display='none'">
+      <span class="text-xs font-bold uppercase tracking-wider text-slate-300">Bienestar Vital Club</span>
+    </div>
+    <span id="step-indicator" class="text-xs font-mono text-slate-400">Paso 1 de 3</span>
+  </div>
+  <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden"><div id="progress-bar" class="bg-brand-500 h-full transition-all duration-300" style="width:33%"></div></div>
+</header>
+
+<main class="w-full max-w-md mx-auto px-4 py-4 flex-1">
+  <div id="quiz" class="step-container space-y-6"></div>
+
+  <div id="step-loading" class="step-container hidden text-center py-8 space-y-6">
+    <div class="relative w-20 h-20 mx-auto flex items-center justify-center">
+      <div class="absolute inset-0 rounded-full border-4 border-slate-800 border-t-brand-500 animate-spin"></div><span class="text-2xl">📊</span>
+    </div>
+    <div><h3 class="text-xl font-bold text-white mb-2">Configurando tu bitácora…</h3><p class="text-xs text-slate-400">Solo tomará unos segundos</p></div>
+    <div id="checks" class="space-y-2 text-left max-w-xs mx-auto text-xs font-mono"></div>
+  </div>
+
+  <div id="paywall" class="step-container hidden space-y-5 pb-28">
+    <div class="text-center">
+      <span class="inline-block px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/30 text-brand-400 text-xs font-bold uppercase mb-2">7 días de prueba</span>
+      <h2 id="pw-h" class="text-2xl font-extrabold text-white tracking-tight leading-tight">Tu bitácora está lista</h2>
+      <p class="text-xs text-slate-300 mt-1">Pruébala 7 días. Cancela cuando quieras.</p>
+    </div>
+
+    <!-- VISTA PREVIA: bitácora + Carmen (deslizable) -->
+    <div>
+      <div id="snap" class="snap flex gap-3 overflow-x-auto snap-x snap-mandatory">
+        <div class="snap-start shrink-0 w-[88%] rounded-2xl border border-slate-800 bg-slate-900 p-3 text-xs">
+          <div class="flex items-center justify-between mb-2"><b id="pv-title" class="text-white text-sm">Tu bitácora</b><span class="text-[10px] text-slate-500">Ejemplo ilustrativo</span></div>
+          <div class="flex gap-2 mb-2">
+            <div id="pv-p" class="flex-1 rounded-lg bg-slate-800 p-2"><p class="text-slate-400">Presión</p><p class="text-lg font-extrabold text-white">118/76 <span class="text-[10px] font-normal text-slate-400">mmHg</span></p></div>
+            <div id="pv-g" class="flex-1 rounded-lg bg-slate-800 p-2"><p class="text-slate-400">Glucosa</p><p class="text-lg font-extrabold text-white">95 <span class="text-[10px] font-normal text-slate-400">mg/dL</span></p></div>
+          </div>
+          <table class="w-full text-left text-slate-300"><thead class="text-slate-500"><tr><th class="py-1">Fecha</th><th>Presión</th><th>Glucosa</th></tr></thead>
+            <tbody><tr><td class="py-1">Lun 08:10</td><td>118/76</td><td>95</td></tr><tr><td class="py-1">Dom 20:30</td><td>121/79</td><td>102</td></tr><tr><td class="py-1">Dom 08:05</td><td>116/74</td><td>93</td></tr></tbody></table>
+          <div class="mt-2 rounded-lg bg-brand-600 text-white text-center font-bold py-2">📄 Exportar reporte para el médico</div>
+        </div>
+        <div class="snap-start shrink-0 w-[88%] rounded-2xl border border-slate-800 bg-slate-900 p-3 text-xs space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="flex items-center gap-2"><span class="w-6 h-6 rounded-full bg-brand-500 text-white grid place-items-center font-bold">C</span><b class="text-white">Carmen · Asistente de rutina</b></span>
+            <span class="text-[10px] text-slate-500">Ejemplo</span>
+          </div>
+          <p class="ml-auto max-w-[80%] rounded-xl rounded-br-sm bg-brand-600 text-white p-2">¿Qué puedo cenar ligero hoy?</p>
+          <p class="max-w-[92%] rounded-xl rounded-bl-sm bg-slate-800 text-slate-200 p-2">¡Claro! Una ensalada de nopales con jitomate y limón, o un caldo de verduras con pollo. Y recuerda tomar agua durante el día 💧</p>
+          <p class="ml-auto max-w-[80%] rounded-xl rounded-br-sm bg-brand-600 text-white p-2">¿Cómo organizo mis mediciones de la semana?</p>
+          <p class="max-w-[92%] rounded-xl rounded-bl-sm bg-slate-800 text-slate-200 p-2">Mide a la misma hora cada día y anótalo en tu bitácora. Antes de tu consulta, exporta el reporte en PDF para llevarlo a tu médico.</p>
+        </div>
+      </div>
+      <div id="dots" class="flex justify-center gap-1.5 mt-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span><span class="w-1.5 h-1.5 rounded-full bg-slate-700"></span></div>
+    </div>
+
+    <div class="rounded-xl border border-slate-800 bg-slate-900/90 p-4 space-y-2.5 text-xs">
+      <p class="flex gap-2.5"><span class="text-brand-500 font-bold">✓</span><span class="text-slate-200"><strong class="text-white">Reportes en PDF:</strong> formato limpio para compartir con el médico.</span></p>
+      <p class="flex gap-2.5"><span class="text-brand-500 font-bold">✓</span><span class="text-slate-200"><strong class="text-white">Carmen (IA):</strong> ideas de recetas y sugerencias de hábitos.</span></p>
+      <p class="flex gap-2.5"><span class="text-brand-500 font-bold">✓</span><span class="text-slate-200"><strong class="text-white">Guías y lecturas</strong> de bienestar incluidas.</span></p>
+    </div>
+
+    <div role="radiogroup" aria-label="Elige tu plan" class="space-y-3">
+      <button type="button" id="plan-annual" role="radio" aria-checked="true" onclick="selectPlan('annual')" class="relative w-full text-left p-4 rounded-xl border-2 border-brand-500 bg-brand-500/10 transition-all">
+        <span id="save" class="absolute -top-3 right-4 bg-brand-500 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase">Más popular</span>
+        <span class="flex justify-between items-center">
+          <span><span class="block font-bold text-white text-sm">Plan Anual Familiar</span><span class="block text-xs text-slate-400">Facturado anualmente ($39 USD/año)</span></span>
+          <span class="text-right"><span class="text-2xl font-extrabold text-white">$3.25</span><span class="text-xs text-slate-400"> USD/mes</span></span>
+        </span>
+      </button>
+      <button type="button" id="plan-monthly" role="radio" aria-checked="false" onclick="selectPlan('monthly')" class="relative w-full text-left p-4 rounded-xl border-2 border-slate-800 bg-slate-900 transition-all">
+        <span class="flex justify-between items-center">
+          <span><span class="block font-bold text-white text-sm">Plan Mensual Flexible</span><span class="block text-xs text-slate-400">Sin compromiso a largo plazo</span></span>
+          <span class="text-right"><span class="text-xl font-bold text-white">$4.99</span><span class="text-xs text-slate-400"> USD/mes</span></span>
+        </span>
+      </button>
+    </div>
+  </div>
+</main>
+
+<footer class="w-full max-w-md mx-auto px-4 pt-4 pb-28 text-center border-t border-slate-900">
+  <p class="text-[11px] text-slate-400 leading-normal"><strong>Aviso de responsabilidad:</strong> Bienestar Vital Club es una aplicación para organizar lecturas personales y hábitos diarios. No brinda diagnósticos ni medicamentos y no sustituye la consulta con un profesional de la salud.</p>
+  <p class="text-[11px] text-slate-500 mt-2"><a href="#" class="underline">Aviso de privacidad</a> · <a href="#" class="underline">Términos</a></p>
+</footer>
+
+<div id="cta-bar" class="hidden fixed bottom-0 inset-x-0 z-10 bg-slate-950/95 backdrop-blur border-t border-slate-800 px-4 pt-3" style="padding-bottom:calc(env(safe-area-inset-bottom) + 12px)">
+  <div class="max-w-md mx-auto space-y-1.5">
+    <a id="cta-link" href="#" onclick="payClick(event)" class="w-full flex items-center justify-center bg-brand-500 hover:bg-brand-600 text-white font-extrabold py-3.5 px-6 rounded-xl shadow-lg shadow-brand-500/20 text-base transition-all active:scale-95">ACTIVAR PRUEBA DE 7 DÍAS</a>
+    <p id="cta-sub" class="text-[11px] text-center text-slate-400"></p>
+  </div>
+</div>
+
+<script>
+/* ===== CONFIGURACIÓN ===== */
+const PLANS = {
+  annual:  {label:'Plan anual',  usd:39,   per:'año', url:'https://pay.hotmart.com/TU_LINK_HOTMART_ANUAL'},
+  monthly: {label:'Plan mensual', usd:4.99, per:'mes', url:'https://pay.hotmart.com/TU_LINK_HOTMART_MENSUAL'}
+};
+const STEPS = [
+  {k:'quien', h:'¿A quién vas a acompañar con esta bitácora?', s:'Personalizaremos tu bitácora y el formato de reporte.',
+   o:[['padres','👴','A mis padres / adultos mayores','Seguimiento familiar a distancia'],['propio','👤','Mi propio seguimiento','Organización personal de lecturas'],['familiar','👨‍👩‍👧','A otro familiar','Registro ordenado de lecturas']]},
+  {k:'reto', h:'¿Cuál es el mayor reto al llevar sus registros?', s:'Esto nos ayuda a configurar el reporte para la consulta.',
+   o:[['libretas','📝','Se pierden o se traban las libretas','Cuesta llevar el papel al médico'],['olvida','⏱️','Falta de constancia y olvidos','Cuesta medir en los horarios'],['recetas','🥑','Ideas para hábitos y nutrición','Necesitamos variedad de recetas sanas']]},
+  {k:'lecturas', h:'¿Qué lecturas necesitas organizar?', s:'Elige la que más usarás. Podrás registrar ambas.',
+   o:[['presion','📈','Presión arterial','Sistólica y diastólica'],['glucosa','💧','Glucosa','Ayuno y mediciones del día'],['ambas','⚡','Ambas','Seguimiento completo']]}
+];
+const WHO = {padres:'tus padres', propio:'ti', familiar:'tu familiar'};
+const SAVE = Math.round((1 - PLANS.annual.usd / (PLANS.monthly.usd * 12)) * 100); /* ahorro real del anual vs mensual */
+
+/* ===== ESTADO ===== */
+const $ = id => document.getElementById(id);
+let cur = 0, view = 'quiz', sel = 'annual', busy = false, timers = [];
+const ans = {};
+
+function showView(v) {
+  view = v;
+  ['quiz','step-loading','paywall'].forEach(id => $(id).classList.toggle('hidden', id !== (v === 'loading' ? 'step-loading' : v)));
+  $('cta-bar').classList.toggle('hidden', v !== 'paywall');
+  window.scrollTo(0, 0);
+}
+
+function renderStep(i) {
+  cur = i; busy = false;
+  const s = STEPS[i], q = $('quiz'); q.textContent = '';
+  const h = document.createElement('h1'); h.className = 'text-2xl font-extrabold text-white tracking-tight'; h.textContent = s.h;
+  const p = document.createElement('p'); p.className = 'text-sm text-slate-400 -mt-3'; p.textContent = s.s;
+  const box = document.createElement('div'); box.className = 'space-y-3';
+  s.o.forEach(o => {
+    const b = document.createElement('button'); b.type = 'button';
+    b.className = 'opt w-full p-4 rounded-xl border border-slate-800 bg-slate-900/90 text-left flex items-center gap-3.5 transition-all';
+    b.innerHTML = '<span class="text-2xl">' + o[1] + '</span><span><span class="block text-sm font-bold text-white"></span><span class="block text-xs text-slate-400"></span></span>';
+    const sp = b.querySelectorAll('span span'); sp[0].textContent = o[2]; sp[1].textContent = o[3];
+    if (ans[s.k] === o[0]) b.classList.add('sel');
+    b.onclick = () => pick(i, o[0], b);
+    box.appendChild(b);
+  });
+  q.append(h, p, box);
+  $('step-indicator').textContent = 'Paso ' + (i + 1) + ' de ' + STEPS.length;
+  $('progress-bar').style.width = ((i + 1) / STEPS.length * 100) + '%';
+  $('back').classList.toggle('hidden', i === 0);
+  showView('quiz');
+}
+
+function pick(i, v, btn) {
+  if (busy) return; busy = true;           /* evita doble toque */
+  ans[STEPS[i].k] = v; btn.classList.add('sel');
+  setTimeout(() => { i < STEPS.length - 1 ? renderStep(i + 1) : runLoading(); }, 220);
+}
+
+function goBack() {
+  timers.forEach(clearTimeout); timers = [];
+  if (view === 'paywall') renderStep(STEPS.length - 1);
+  else if (cur > 0) renderStep(cur - 1);
+}
+
+function runLoading() {
+  showView('loading');
+  $('back').classList.add('hidden');
+  $('step-indicator').textContent = 'Preparando…';
+  const what = ans.lecturas === 'presion' ? 'presión' : ans.lecturas === 'glucosa' ? 'glucosa' : 'presión y glucosa';
+  const items = ['Preparando tu bitácora de ' + what, 'Preparando el reporte en PDF para tu médico', 'Activando a Carmen, tu asistente de rutina'];
+  const box = $('checks'); box.textContent = '';
+  const rows = items.map(t => { const d = document.createElement('div'); d.className = 'text-slate-500'; d.textContent = '○ ' + t; box.appendChild(d); return d; });
+  rows.forEach((d, j) => timers.push(setTimeout(() => { d.className = 'text-brand-400'; d.textContent = '✓ ' + items[j]; }, 700 * (j + 1))));
+  timers.push(setTimeout(showPaywall, 2800));
+}
+
+function showPaywall() {
+  $('pw-h').textContent = 'Tu bitácora para ' + WHO[ans.quien] + ' está lista';
+  $('pv-title').textContent = ans.quien === 'padres' ? 'Bitácora de tus papás' : ans.quien === 'familiar' ? 'Bitácora de tu familiar' : 'Tu bitácora';
+  $('pv-p').classList.toggle('hidden', ans.lecturas === 'glucosa');
+  $('pv-g').classList.toggle('hidden', ans.lecturas === 'presion');
+  $('save').textContent = 'Más popular · Ahorras ' + SAVE + '%';
+  $('step-indicator').textContent = 'Listo';
+  $('back').classList.remove('hidden');
+  selectPlan(sel);
+  showView('paywall');
+}
+
+function selectPlan(p) {
+  sel = p;
+  ['annual','monthly'].forEach(k => {
+    const b = $('plan-' + k), on = k === p;
+    b.classList.toggle('border-brand-500', on); b.classList.toggle('bg-brand-500/10', on);
+    b.classList.toggle('border-slate-800', !on); b.classList.toggle('bg-slate-900', !on);
+    b.setAttribute('aria-checked', on);
+  });
+  $('cta-link').href = PLANS[p].url;
+  $('cta-sub').textContent = '🔒 Pago seguro vía Hotmart · ' + PLANS[p].label + ' $' + PLANS[p].usd + ' USD/' + PLANS[p].per + ' · Cancela cuando quieras';
+  try { localStorage.setItem('bvc_onb', JSON.stringify({a: ans, plan: p})); } catch (e) {}
+}
+
+function payClick(e) {
+  if (PLANS[sel].url.indexOf('TU_LINK') > -1) { e.preventDefault(); alert('El enlace de pago aún no está configurado.'); }
+}
+
+/* puntos del carrusel de vista previa */
+const sn = $('snap');
+sn.addEventListener('scroll', () => {
+  const i = Math.round(sn.scrollLeft / (sn.firstElementChild.offsetWidth + 12));
+  [...$('dots').children].forEach((d, j) => d.className = 'w-1.5 h-1.5 rounded-full ' + (j === i ? 'bg-brand-500' : 'bg-slate-700'));
+}, {passive: true});
+
+renderStep(0);
+</script>
+</body>
+</html>
