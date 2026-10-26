@@ -14,7 +14,6 @@
 body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:84px}
 header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5}
 header b{font-size:16px}header small{display:block;color:var(--mu);font-size:11px}
-#badge{font-size:11px;font-weight:700;background:#ccfbf1;color:#115e59;padding:4px 10px;border-radius:99px}
 main{max-width:560px;margin:0 auto;padding:16px}
 section{display:none}section.on{display:block}
 .card{background:#fff;border:1px solid var(--bd);border-radius:16px;padding:16px;margin-bottom:14px}
@@ -36,7 +35,7 @@ nav button.on{color:var(--t);font-weight:700}
 nav span{display:block;font-size:19px}
 details{border-bottom:1px solid var(--bd);padding:8px 0}summary{font-weight:700;cursor:pointer}
 .pre{white-space:pre-wrap}
-#paywall{position:fixed;inset:0;background:#fff;z-index:20;display:none;padding:40px 20px;text-align:center}
+#paywall{position:fixed;inset:0;background:#fff;z-index:20;display:none;padding:40px 20px;text-align:center;overflow:auto}
 #report{display:none}
 #report table{margin-top:12px}#report th,#report td{border:1px solid #999;padding:6px}
 @media print{body>*:not(#report){display:none!important}#report{display:block!important;padding:16px}body{background:#fff}}
@@ -56,7 +55,6 @@ details{border-bottom:1px solid var(--bd);padding:8px 0}summary{font-weight:700;
     <img src="img/logo.webp" alt="Logo" style="width:36px;height:36px;object-fit:contain;border-radius:8px;">
     <div><b>Bienestar Vital Club</b><small>Rutina y bienestar diario</small></div>
   </div>
-  <span id="badge">Prueba</span>
 </header>
 
 <main>
@@ -140,16 +138,28 @@ details{border-bottom:1px solid var(--bd);padding:8px 0}summary{font-weight:700;
 </nav>
 
 <div id="paywall">
-  <h2>Tu prueba de 7 días ha finalizado</h2>
-  <p>Para seguir usando la bitácora, el reporte y a Carmen, activa tu acceso.</p>
-  <a id="pay-link" class="btn" target="_blank" rel="noopener noreferrer">Activar mi acceso</a>
+  <h2>Activa tu acceso a Bienestar Vital Club</h2>
+  <p>Una sola suscripción para toda tu familia: bitácora, reporte en PDF y Carmen.</p>
+  <a id="pay-annual" class="btn" target="_blank" rel="noopener noreferrer" style="margin-top:14px">Plan anual familiar · $49.99 USD/año</a>
+  <a id="pay-monthly" class="btn alt" target="_blank" rel="noopener noreferrer" style="margin-top:10px">Plan mensual · $5.99 USD/mes</a>
+  <p id="member-hint" class="mu" style="margin-top:14px">¿Ya eres miembro? Abre el enlace de acceso que recibiste por correo.</p>
+  <div id="member-box" style="display:none;margin-top:18px;text-align:left">
+    <p class="mu" style="margin-bottom:6px">¿Ya eres miembro? Escribe el correo con el que compraste:</p>
+    <input id="member-email" type="email" inputmode="email" autocomplete="email" placeholder="tu@correo.com">
+    <button class="btn alt" type="button" onclick="memberLogin()">Entrar</button>
+  </div>
+  <p id="member-msg" class="mu" style="margin-top:10px"></p>
 </div>
 
 <div id="report"></div>
 
 <script>
 /* ===== CONFIGURACIÓN (edita aquí) ===== */
-const PAY_URL = 'https://go.hotmart.com/S107380135J?dp=1';
+const PAY = {annual: 'https://pay.hotmart.com/K108180666N?off=ms24zitl', monthly: 'https://pay.hotmart.com/K108180666N?off=w8xn1xdb'};
+/* Candado opcional: pon aquí el SHA-256 de tu clave secreta para activarlo. Vacío = app abierta. */
+const ACCESS_HASH = 'bb605fe02082170dbe2bf49d21a20c036de9aafefd92f23e8a8bd5454fcf35f3';
+/* Cambia a true cuando api/access.js y la tabla de Supabase estén listos (reemplaza al candado por clave). */
+const CHECK_SUBSCRIPTION = false;
 const SAFETY = 'Esta app no sustituye la atención médica. Ante dolor de pecho, dificultad para respirar, debilidad repentina, dificultad para hablar o malestar intenso, llama al 911 o acude a urgencias.';
 
 const RECETAS = [
@@ -193,14 +203,65 @@ function go(t) {
   window.scrollTo(0, 0);
 }
 
-/* ===== PRUEBA DE 7 DÍAS (solo en este dispositivo) ===== */
-function trial() {
-  const raw = localStorage.getItem('bvc_start');
-  let s = Number(raw) || Date.parse(raw);
-  if (!s) { s = Date.now(); try { localStorage.setItem('bvc_start', String(s)); } catch (e) {} }
-  const d = Math.floor((Date.now() - s) / 864e5) + 1;
-  if (d > 7) { $('badge').textContent = 'Prueba finalizada'; $('paywall').style.display = 'block'; }
-  else $('badge').textContent = 'Prueba (día ' + d + ' de 7)';
+/* ===== ACCESO (venta directa) ===== */
+async function sha256(t) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+  return Array.from(new Uint8Array(b)).map(c => c.toString(16).padStart(2, '0')).join('');
+}
+function showLock(msg, member) {
+  $('paywall').style.display = 'block';
+  $('member-box').style.display = member ? 'block' : 'none';
+  $('member-hint').style.display = member ? 'none' : 'block';
+  $('member-msg').textContent = msg || '';
+}
+function hideLock() { $('paywall').style.display = 'none'; }
+async function checkSub(email) { /* consulta a /api/access: active | inactive | error */
+  try {
+    const r = await fetch('/api/access?email=' + encodeURIComponent(email), {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    return d.active === true ? 'active' : 'inactive';
+  } catch (e) { console.error('[Acceso]', e); return 'error'; }
+}
+async function verifyMember(email, fromLogin) {
+  const st = await checkSub(email);
+  if (st === 'active') {
+    try { localStorage.setItem('bvc_email', email); localStorage.setItem('bvc_ok_until', String(Date.now() + 3 * 864e5)); } catch (e) {}
+    hideLock(); return;
+  }
+  if (st === 'error') { /* sin conexión: se permite hasta 3 días desde la última verificación correcta */
+    let until = 0; try { until = Number(localStorage.getItem('bvc_ok_until')) || 0; } catch (e) {}
+    if (!fromLogin && until > Date.now()) { hideLock(); return; }
+    showLock('No pudimos verificar tu suscripción. Revisa tu conexión e inténtalo de nuevo.', true); return;
+  }
+  try { localStorage.removeItem('bvc_ok_until'); } catch (e) {}
+  showLock('No encontramos una suscripción activa para ese correo. Si ya pagaste, espera unos minutos; si venció, renueva abajo.', true);
+}
+function memberLogin() {
+  const em = $('member-email').value.trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(em)) { $('member-msg').textContent = 'Escribe un correo válido.'; return; }
+  $('member-msg').textContent = 'Verificando…';
+  verifyMember(em, true);
+}
+async function gate() {
+  if (CHECK_SUBSCRIPTION) { /* modo suscripción: bloquea al vencer y desbloquea al renovar */
+    let em = ''; try { em = localStorage.getItem('bvc_email') || ''; } catch (e) {}
+    if (!em) { showLock('', true); return; }
+    showLock('Verificando tu suscripción…', true);
+    verifyMember(em, false); return;
+  }
+  if (!ACCESS_HASH) return; /* sin candado */
+  let ok = false;
+  try { ok = localStorage.getItem('bvc_access') === ACCESS_HASH; } catch (e) {}
+  if (!ok) showLock('', false);
+  try {
+    const k = new URLSearchParams(location.search).get('acceso');
+    if (k && (await sha256(k)) === ACCESS_HASH) {
+      try { localStorage.setItem('bvc_access', ACCESS_HASH); } catch (e) {}
+      history.replaceState(null, '', location.pathname);
+      hideLock();
+    }
+  } catch (e) { console.error('[Acceso]', e); }
 }
 
 /* ===== BITÁCORA ===== */
@@ -364,11 +425,13 @@ function renderGuias() {
 const SUPABASE_URL = 'https://fxotomsezspqftqgvwyo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4b3RvbXNlenNwcWZ0cWd2d3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3Mjk2MzMsImV4cCI6MjEwODMwNTYzM30.fEhsazfeTO-qDEiap0V3rIP_Px0Ro7BGRyZ7OWxsNr0';
 
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabaseClient = null; /* si el CDN falla, la app sigue funcionando */
+try { if (window.supabase) supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch (e) { console.error('[Supabase]', e); }
 /* ===== INICIO ===== */
 document.querySelectorAll('.safety').forEach(e => e.textContent = SAFETY);
-$('pay-link').href = PAY_URL;
-trial(); renderLog(); renderContact(); renderRecetas(); renderGuias();
+$('pay-annual').href = PAY.annual; $('pay-monthly').href = PAY.monthly;
+renderLog(); renderContact(); renderRecetas(); renderGuias();
+gate();
 </script>
 </body>
 </html>
