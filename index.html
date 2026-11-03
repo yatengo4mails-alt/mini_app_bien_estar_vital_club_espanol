@@ -220,6 +220,7 @@ async function checkSub(email) { /* consulta a /api/access: active | inactive | 
     const r = await fetch('/api/access?email=' + encodeURIComponent(email), {cache: 'no-store'});
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
+    if (d.active === true && d.token) { try { localStorage.setItem('bvc_token', d.token); } catch (e) {} }
     return d.active === true ? 'active' : 'inactive';
   } catch (e) { console.error('[Acceso]', e); return 'error'; }
 }
@@ -366,6 +367,23 @@ const FLAGS = [
 const SYMP = /sintoma|me duele|dolor|mareo|mareada|mareado|me siento mal|presion alta|azucar alta/;
 const clean = t => String(t).replace(/\*\*(.*?)\*\*/g, '$1').replace(/^#{1,6}\s*/gm, '').replace(/^\s*[*\-]\s+/gm, '• ').replace(/\*/g, '').trim();
 
+/* ===== CONEXIÓN SEGURA CON CARMEN ===== */
+function getTok() { try { return localStorage.getItem('bvc_token') || ''; } catch (e) { return ''; } }
+async function chatFetch(prompt, signal) {
+  const send = () => fetch('/api/chat', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getTok()},
+    body: JSON.stringify({prompt}),
+    signal
+  });
+  let r = await send();
+  if (r.status === 401) { /* credencial vencida: se renueva con el correo guardado y se reintenta una vez */
+    let em = ''; try { em = localStorage.getItem('bvc_email') || ''; } catch (e) {}
+    if (em && (await checkSub(em)) === 'active') r = await send();
+  }
+  return r;
+}
+
 async function askCarmen() {
   const q = $('q'), out = $('ans'), b = $('ask'), al = $('c-alert');
   const txt = q.value.trim().slice(0, 600).replace(/[<>]/g, '');
@@ -385,7 +403,7 @@ async function askCarmen() {
   b.disabled = true; const label = b.textContent; b.textContent = 'Carmen está pensando…'; out.textContent = '';
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 35000);
   try {
-    const r = await fetch('/api/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({prompt}), signal: ctl.signal});
+    const r = await chatFetch(prompt, ctl.signal);
     const raw = await r.text(); let data = null;
     try { data = JSON.parse(raw); } catch (e) {}
     if (!r.ok || !data) { console.error('[Carmen] HTTP', r.status, raw.slice(0, 300)); throw new Error('HTTP ' + r.status); }
