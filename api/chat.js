@@ -1,3 +1,6 @@
+import { verifyToken, tokenConfigured } from '../lib/token.js';
+import { hit } from '../lib/limit.js';
+
 const MODELS = (process.env.GEMINI_MODELS || 'gemini-3.8-flash,gemini-3.7-flash,gemini-3.5-flash-lite')
   .split(',').map(s => s.trim()).filter(Boolean);
 const RETRY_WITH_NEXT_MODEL = [404, 429, 500, 503, 504];
@@ -27,6 +30,28 @@ export default async function handler(req, res) {
   if (!apiKey) {
     return res.status(500).json({ error: 'GEMINI_API_KEY no configurada en Vercel' });
   }
+  if (!tokenConfigured()) {
+    return res.status(500).json({ error: 'TOKEN_SECRET no configurada en Vercel' });
+  }
+  res.setHeader('Cache-Control', 'no-store');
+
+  // 1) Solo páginas de tu propio sitio (frena el uso desde otros sitios web)
+  const origin = req.headers.origin;
+  if (origin) {
+    let host = '';
+    try { host = new URL(origin).host; } catch { /* origen inválido */ }
+    if (host !== req.headers.host) return res.status(403).json({ error: 'Origen no permitido' });
+  }
+
+  // 2) Credencial firmada que solo entrega /api/access a suscriptores vigentes
+  const auth = String(req.headers.authorization || '');
+  const claims = verifyToken(auth.startsWith('Bearer ') ? auth.slice(7) : '');
+  if (!claims) return res.status(401).json({ error: 'No autorizado' });
+
+  // 3) Límite por usuario (ráfagas)
+  if (!hit('chat:' + claims.e, 30, 10 * 60 * 1000)) {
+    return res.status(429).json({ error: 'Demasiadas consultas seguidas. Espera unos minutos.' });
+  }
 
   let body = req.body;
   if (typeof body === 'string') {
@@ -40,6 +65,9 @@ export default async function handler(req, res) {
   const prompt = body && body.prompt;
   if (!prompt || typeof prompt !== 'string') {
     return res.status(400).json({ error: 'Falta el campo "prompt" (string)' });
+  }
+  if (prompt.length > 4000) {
+    return res.status(400).json({ error: 'Mensaje demasiado largo' });
   }
 
   const deadline = Date.now() + TOTAL_BUDGET_MS;
